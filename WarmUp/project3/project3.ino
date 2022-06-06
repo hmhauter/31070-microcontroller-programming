@@ -5,7 +5,7 @@ const float baselineTemp = 20.0;
 const float criticalTemp = 30.0;
 
 void setup() {
-  // put your setup code here, to run once:
+  // check if MKR ENV shield is initialized
   if (!ENV.begin()) {
     Serial.println("Failed to initialize MKR ENV shield!");
     while (1);
@@ -21,14 +21,17 @@ void setup() {
 }
 
 void loop() {
-  // ENV.begin();
+  // read temperature from Arduino ENV Shield
   float ref_temperature = ENV.readTemperature();
-  // put your main code here, to run repeatedly:
+  // read temperature from temperature sensor
   int sensorVal = analogRead(sensorPin);
   int ref_temp = digitalRead(6);
+  // convert sensor value to voltage
   float voltage = (sensorVal/1024.0) * 3.3;
+  // convert voltage to temperature
   float temperature = (voltage - 0.5) / (0.010);
 
+  // print information for user 
   Serial.println("Sensor Value: ");
   Serial.println(sensorVal);
   Serial.println("Volt: ");
@@ -37,17 +40,20 @@ void loop() {
   Serial.println(temperature);
   Serial.println("Reference Temperature: ");
   Serial.println(ref_temperature);
-  
+
+  // if temperature is smaller than threshold  temperature green LED is on
   if(temperature < baselineTemp){
   digitalWrite(2, HIGH);
   digitalWrite(3, LOW);
   digitalWrite(4, LOW);
   }
+  // if temperature is larger than critical temperature red LED is on
   else if(temperature > criticalTemp) {
   digitalWrite(2, LOW);
   digitalWrite(3, LOW);
   digitalWrite(4, HIGH);  
   }
+  // else orange LED is on
   else{
   digitalWrite(2, LOW);
   digitalWrite(3, HIGH);
