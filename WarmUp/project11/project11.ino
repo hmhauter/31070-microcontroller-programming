@@ -9,14 +9,14 @@ int reply;
 
 void setup() {
    pinMode(7, OUTPUT);
-   pinMode(8, OUTPUT);
+   // pinMode(8, OUTPUT);
    analogWrite(7, 1);
-   analogWrite(8, 100);
+   // analogWrite(8, 100);
    lcd.begin(16, 2);
    pinMode(switchPin,INPUT);
-   lcd.print("Ask the");
+   lcd.print("Hello");
    lcd.setCursor(0, 1);
-   lcd.print("Crystal Ball!");
+   lcd.print("Pauline!");
    
 
 }
