@@ -6,6 +6,7 @@
 const int ledPin = 1;
 
 // Low Pass Filter
+//float alpha = 0.03045902795;
 float alpha = 0.027947230169320696; //50 Hz - 10 ksps in interrupt
 float oneMinusAlpha = 1-alpha; //Calculation to speed up filter calculation in ISR
 
@@ -20,7 +21,7 @@ float sample = 0.0;
 
 void setup() {
   // put your setup code here, to run once:
-  // Serial.begin(9600);
+  Serial.begin(9600);
   pinMode(ledPin, OUTPUT);
   MyTimer5.begin(10000);
   MyTimer5.attachInterrupt(calculateFrequency);
@@ -56,9 +57,7 @@ void AdcBooster() {
 
 float lowPassFilter(float Input, float yOld){
   //Low-pass filter function
-  float yNew;
-  yNew = alpha*Input+oneMinusAlpha*yOld; 
-  return yNew; 
+  return (float) alpha*Input+oneMinusAlpha*yOld;  
 } 
 
 void calculateFrequency(void) {
@@ -66,6 +65,7 @@ void calculateFrequency(void) {
 
   // Calculate Frequency
   analogReadResolution(10);
+  analogWriteResolution(10);
   sample = analogRead(A1);
   newY = lowPassFilter(sample, oldY);
   oldY = newY;
@@ -75,6 +75,7 @@ void calculateFrequency(void) {
     zeroCrossing++;
     }
   freqCount++;
-  digitalWrite(A0, newY);
+  Serial.println(newY);
+  analogWrite(A0, newY);
     
 }
