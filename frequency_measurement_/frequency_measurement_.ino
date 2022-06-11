@@ -1,5 +1,6 @@
 #include "Timer5.h"
 #include <LiquidCrystal.h>
+#define PI 3.1415926535897932384626433832795
 LiquidCrystal lcd(12, 4, 5, 11, 3, 2);
 
 // Global Variables
@@ -7,9 +8,22 @@ LiquidCrystal lcd(12, 4, 5, 11, 3, 2);
 // Debugging 
 const int ledPin = 1;
 
+// Frequency Calculation
+volatile long int zeroCrossing = 0;
+volatile float sampleCount = 0.0;
+float sample = 0.0;
+volatile float frequency = 0.0;
+volatile float debug =0.0;
+const float samplingRate = 10000.0;
+const float offsetValueZeroCrossing = 257.12;
+
 // Low Pass Filter
-float alpha = 0.03045902795;      // from own calculation 
-// float alpha = 0.027947230169320696;  //50 Hz - 10 ksps in interrupt (from lecture)
+const float crossOverFreq = 50.0;
+
+
+// float alpha;
+// float alpha = 0.03045902795;      // from own calculation 
+float alpha = 0.027947230169320696;  //50 Hz - 10 ksps in interrupt (from lecture)
 // float alpha_new = 0.006243953391; // 10Hz
 // float alpha_new = 0.05911739744;  // 100 Hz
 // float alpha_new = 0.015465039;    // sampling rate 20000 Hz
@@ -19,19 +33,10 @@ float oneMinusAlpha = 1.0-alpha; //Calculation to speed up filter calculation in
 volatile float oldY = 0.0;
 volatile float newY = 0.0;
 
-// Frequency Calculation
-volatile long int zeroCrossing = 0;
-volatile float sampleCount = 0.0;
-float sample = 0.0;
-volatile float frequency = 0.0;
-volatile float debug =0.0;
-const float samplingRate = 10000.0;
-
-const float offsetValueZeroCrossing = 257.12;
-
 void setup() {
   // put your setup code here, to run once:
   // Serial.begin(9600);
+  // alpha = calculateAlpha(crossOverFreq, (float)(1.0/samplingRate));
   pinMode(ledPin, OUTPUT);
   pinMode(7, OUTPUT);
   analogWrite(7, 1);
@@ -42,13 +47,14 @@ void setup() {
   MyTimer5.start();
   lcd.begin(16, 2);
   lcd.setCursor(0, 0);
+  lcd.print("HALLO");
 }
 
 void loop() {
     digitalWrite(ledPin, 1);
     if (zeroCrossing % 20 == 0) {
-      lcd.clear();
-      lcd.print((frequency), 6);
+      // lcd.clear();
+      // lcd.print((sampleCount), 6);
       }
   // put your main code here, to run repeatedly:
   // int sample = analogRead(A1);
@@ -89,6 +95,11 @@ void calculateFrequency(void) {
 
   // detect "zero crossing"
   if(newY >= offsetValueZeroCrossing and oldY < offsetValueZeroCrossing) {
+    if(zeroCrossing % 20 == 0) {
+      lcd.clear();
+      lcd.print((sampleCount), 6);
+      }
+
     detectZeroCrossing();
     zeroCrossing++;
     sampleCount = 0.0;
@@ -103,11 +114,12 @@ void calculateFrequency(void) {
 
 void detectZeroCrossing() {
   // debug = ((newY*(1.0/samplingRate))/(newY-oldY));
-  debug = (offsetValueZeroCrossing - oldY) * ((1.0/samplingRate)/(newY-oldY));
-   
+  // debug = (offsetValueZeroCrossing - oldY) * ((1.0/samplingRate)/(newY-oldY));
+  // debug = ((newY - offsetValueZeroCrossing) / (newY - oldY)) * (1.0/samplingRate);
+  
   // debug = ((newY - offsetValueZeroCrossing) *((1.0/samplingRate)/(newY-oldY)));
    // float period = (sampleCount/samplingRate)-((newY*(1.0/samplingRate))/(newY-oldY));
-   float period = (sampleCount/samplingRate)-debug;
+   float period = (sampleCount/samplingRate); // -debug;
 //   Serial.println("Plain Period: ");
 //   Serial.println((sampleCount/samplingRate));
 //  Serial.println("Interpol: ");
@@ -126,5 +138,9 @@ void detectZeroCrossing() {
 //  Serial.println(frequency);
   }
 
+float calculateAlpha(float crossOverFreq, float deltaT) {
+  float RC = 1 / (2 * PI * crossOverFreq);
+  return deltaT / (RC + deltaT);
+  }
 
   
