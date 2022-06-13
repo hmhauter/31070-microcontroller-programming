@@ -1,6 +1,8 @@
 #include "Timer5.h"
 #include <LiquidCrystal.h>
 #include <math.h>
+#include <stdbool.h>
+
 #define PI 3.1415926535897932384626433832795
 LiquidCrystal lcd(12, 4, 5, 11, 3, 2);
 
@@ -14,14 +16,14 @@ volatile long int zeroCrossing = 0;
 
 float sample = 0.0;
 volatile float frequency = 0.0;
-volatile float debug =0.0;
-const float samplingRate = 10000.0;
-const float offsetValueZeroCrossing = 257.12;
+volatile float debug = 0.0;
+const int samplingRate = 10000;
+const int offsetValueZeroCrossing = 257;
 
 const int resolution = 1023; 
 
 // Low Pass Filter
-const float crossOverFreq = 50.0;
+const float crossOverFreq = 150.0;
 
 
 float alpha;
@@ -46,15 +48,22 @@ volatile float voltage = 0.0;
 volatile float ampere = 0.0;
 volatile float RMS_voltage = 0.0;
 volatile float RMS_ampere = 0.0;
-volatile float sampleCounter = 0.0;
 volatile float power = 0.0;
 
-volatile float frequencySum = 0.0;
+const float frequencyPeriod = 1.0;
+unsigned long previousMillis = 0;  
+
+volatile int sampleCounter = 0;
+
+volatile int t1 = 0;
+volatile int t2 = 0;
+
+const int measureFrequency = 50; 
 
 void setup() {
   // put your setup code here, to run once:
   // Serial.begin(9600);
-  alpha = calculateAlpha(crossOverFreq, (float)(1.0/samplingRate));
+  alpha = calculateAlpha(crossOverFreq, (1.0/samplingRate));
   oneMinusAlpha = 1.0 - alpha;
   
   analogReadResolution(10);
@@ -67,7 +76,7 @@ void setup() {
   digitalWrite(ledPin, 0);
 
   MyTimer5.begin(samplingRate);
-  MyTimer5.attachInterrupt(calculateFrequency);
+  MyTimer5.attachInterrupt(detectZeroCrossing);
   AdcBooster();
   // DAC->CTRLA.bit.ENABLE = 1; // Enable DAC
   MyTimer5.start();
@@ -76,30 +85,45 @@ void setup() {
 }
 
 void loop() {
-//  Serial.println(alpha, 6);
-//  Serial.print("\t");
-//  Serial.println("Frequency: ");
-//  Serial.println(frequency, 6);
-//  Serial.println("RMS Ampere: ");
-//  Serial.println(RMS_ampere, 6);
-//  Serial.println("RMS Voltage: ");
-
-//  Serial.println(RMS_voltage, 6);
-//  Serial.println("Power: ");
-//  Serial.println(power, 6);
-
-  if (zeroCrossing % 20 == 0) {
+//  unsigned long currentMillis = millis();
+//  if (currentMillis - previousMillis >= 1000) {
+//    lcd.clear();
+//    lcd.print(zeroCrossing);
+//    previousMillis = currentMillis;
+//    zeroCrossing = 0;
+//    }
+  if (zeroCrossing >= measureFrequency) {
+    // this is important!
+    // use scaling factors for frequency measurement (emperically determined)
+    // don't use sample Rate - it is not accurate enough
+    frequency = zeroCrossing / (sampleCounter * (1.0 / 10927.0)*1.007375); // 1.00731
     lcd.clear();
-    lcd.print((frequency),3);
-    frequencySum = 0.0;
-    
-  }
-  if (frequency <= 49.9 || frequency >= 50.2 ) {
-    digitalWrite(6, 1);
-  }
-  else {
-    digitalWrite(6,0);
-  }
+    lcd.print(frequency, 4);
+    zeroCrossing = 0;
+    sampleCounter = 0;
+    }
+
+
+
+//  if (sampleCounter == samplingRate) {
+//    frequency = (zeroCrossing-1) / ((t2-t1) * (1.0/samplingRate));
+//    
+//    lcd.clear();
+//    lcd.print(frequency);
+//    //lcd.setCursor(0, 1);
+//    // lcd.print(sampleCounter);
+//    zeroCrossing = 0;
+//    sampleCounter = 0;
+//    t1 = 0;
+//    
+//  }
+//   
+//  if (frequency <= 49.9 || frequency >= 50.2 ) {
+//    digitalWrite(6, 1);
+//  }
+//  else {
+//    digitalWrite(6,0);
+//  }
 }
 
 void AdcBooster() {
@@ -109,7 +133,7 @@ void AdcBooster() {
   ADC_CTRLB_RESSEL_10BIT; // Result on 10 bits
   ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM_1 | // 1 sample
   ADC_AVGCTRL_ADJRES(0x00ul); // Adjusting result by 0
-  ADC->SAMPCTRL.reg = 0x00;//0x00; // Sampling Time Length = 0
+  ADC->SAMPCTRL.reg = 0x00; // Sampling Time Length = 0
   ADC->CTRLA.bit.ENABLE = 1; // Enable ADC
   while( ADC->STATUS.bit.SYNCBUSY == 1 ); // Wait for synchronization
 } 
@@ -119,55 +143,34 @@ float lowPassFilter(float Input, float yOld){
   return (float) alpha*Input+oneMinusAlpha*yOld;  
 } 
 
-void calculateFrequency(void) {
-  // TIMESTAMP FOR DEBUGGING 
-  // nt = newT = micros() / 1000000.0;
+void detectZeroCrossing(void) {
+
   // Interrupt Callback function 
-  sample = (float)analogRead(A1);
+  sample = analogRead(A1);
+  
   // apply low pass filter to smoothen data
   newY = lowPassFilter(sample, oldY);
+  sampleCounter++;
   // detect "zero crossing"
-  if(newY >= offsetValueZeroCrossing and oldY < offsetValueZeroCrossing) {
-    // get current timestamp
-    newT = micros() / 1000000.0; // millis()/1000.0;
-    // interpolation
-    debug = ((newY - offsetValueZeroCrossing) / (newY - oldY)) * (1/ samplingRate);
-    float period = newT - oldT- debug;
-    frequency = (1.0/period);
-
-    frequencySum += frequency;
-    oldT = newT;
+  if(newY >= offsetValueZeroCrossing && oldY < offsetValueZeroCrossing) {
     zeroCrossing++;
-    RMS_voltage = sqrt((1/sampleCounter) * voltage);
-    RMS_ampere = sqrt((1/sampleCounter) * ampere);
-    power = RMS_voltage * RMS_ampere;
-    voltage = 0.0;
-    ampere = 0.0;
-    sampleCounter = 0.0;
-    }
-    else {
-//      Serial.println("Sample: ");
-//      Serial.println(sample);
-//      Serial.println("Mapping Volt: ");
-//      Serial.println(map(sample, 0, resolution, -240*sqrt(2), 240*sqrt(2)));
-      voltage += powf(map(sample, 0, resolution, -240*sqrt(2), 240*sqrt(2)), 2);
-      ampere += powf(map(sample, 0, resolution, -42*sqrt(2), 42*sqrt(2)), 2);
-      sampleCounter++;
-      }
+//    if (t1 == 0) {
+//      t1 = sampleCounter;
+//      }
+//    t2 = sampleCounter;
+  }  
   oldY = newY;
-  // ot = nt;
-  analogWrite(A0, newY);
+
+ analogWrite(A0, newY);
 }
 
-//void detectZeroCrossing() {
-//  float interpolationValue = ((newY - offsetValueZeroCrossing) / (newY - oldY)) * (1.0/samplingRate);
-//  // set current timestamp
-//  newT = millis()/1000.0;
-//  // calculate the period as the difference between the last zero crossing and the new zero crossing
-//  float period = newT - oldT; //- interpolationValue;
-//  frequency = ((float) 1.0/period);
-//  oldT = newT;
-//  }
+void calculateFrequency() {
+  // float interpolationValue = ((newY - offsetValueZeroCrossing) / (newY - oldY)) * (1.0/samplingRate);
+  // calculate the period as the difference between the last zero crossing and the new zero crossing
+  
+  // float period = newT - oldT; //- interpolationValue;
+  frequency = (zeroCrossing-1) / ((t2-t1) * (1.0/samplingRate));
+  }
 
 float calculateAlpha(float crossOverFreq, float deltaT) {
   float RC = 1 / (2 * PI * crossOverFreq);
