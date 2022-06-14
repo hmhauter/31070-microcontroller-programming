@@ -1,8 +1,7 @@
 #include "Timer5.h"
 #include <LiquidCrystal.h>
 #include <math.h>
-#include <stdbool.h>
-
+#include <string.h>
 #define PI 3.1415926535897932384626433832795
 LiquidCrystal lcd(12, 4, 5, 11, 3, 2);
 
@@ -14,7 +13,7 @@ const int ledPin = 1;
 // Frequency Calculation
 volatile long int zeroCrossing = 0;
 
-float sample = 0.0;
+volatile float sample = 0.0;
 volatile float frequency = 0.0;
 volatile float debug = 0.0;
 const int samplingRate = 10000;
@@ -44,21 +43,23 @@ volatile float oldT = 0.0;
 volatile float nt = 0.0;
 volatile float ot = 0.0;
 
-volatile float voltage = 0.0;
-volatile float ampere = 0.0;
-volatile float RMS_voltage = 0.0;
-volatile float RMS_ampere = 0.0;
-volatile float power = 0.0;
+float RMS_voltage = 0.0;
+float RMS_current = 0.0;
+float RMS_power = 0.0;
 
 const float frequencyPeriod = 1.0;
 unsigned long previousMillis = 0;  
 
 volatile int sampleCounter = 0;
 
-volatile int t1 = 0;
-volatile int t2 = 0;
-
 const int measureFrequency = 50; 
+
+// RMS Calcukation 
+int inputSum = 0;
+int outerSampleCounter = 0;
+float voltSum = 0.0;
+float currentSum = 0.0;
+float powerSum = 0.0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -85,45 +86,62 @@ void setup() {
 }
 
 void loop() {
-//  unsigned long currentMillis = millis();
-//  if (currentMillis - previousMillis >= 1000) {
-//    lcd.clear();
-//    lcd.print(zeroCrossing);
-//    previousMillis = currentMillis;
-//    zeroCrossing = 0;
-//    }
   if (zeroCrossing >= measureFrequency) {
     // this is important!
     // use scaling factors for frequency measurement (emperically determined)
     // don't use sample Rate - it is not accurate enough
-    frequency = zeroCrossing / (sampleCounter * (1.0 / 10927.0)*1.007375); // 1.00731
-    lcd.clear();
-    lcd.print(frequency, 4);
+    frequency = zeroCrossing / (sampleCounter * (1.0 / 10927.0)*1.0186); // 1.00731
+    // only frequency print out: scaling factor 1.007375
+
+    // RMS calculations
+    calculate_RMS();
+    
+    // LCD prints
+    printLCD();
+    
+    // reset values for next period
+    voltSum = 0;
+    currentSum = 0;
+    outerSampleCounter = 0;
     zeroCrossing = 0;
     sampleCounter = 0;
     }
 
+    float volt = map(sample, 0, (resolution/2), -240*sqrt(2), 240*sqrt(2));
+    float current = map(sample, 0, (resolution/2), -42*sqrt(2), 42*sqrt(2));
+    voltSum += powf(volt, 2);
+    currentSum += powf(current, 2);
+    powerSum += current * volt;
+    
+    outerSampleCounter++;
+}
 
+void printLCD() {
+    // LCD prints
+    lcd.clear();
+    // Frequency
+    lcd.print("Freq:");
+    lcd.setCursor(6, 0);
+    lcd.print(frequency, 4);
+    lcd.setCursor(14, 0);
+    lcd.print("Hz");
+    // RMS Volt 
+    lcd.setCursor(0, 1);
+    lcd.print(RMS_voltage, 2);
+    lcd.setCursor(6, 1);
+    lcd.print("V");
+    // RMS Current 
+    lcd.setCursor(10, 1);   
+    lcd.print(RMS_current, 2);
+    lcd.setCursor(15, 1);
+    lcd.print("A");
+  
+  }
 
-//  if (sampleCounter == samplingRate) {
-//    frequency = (zeroCrossing-1) / ((t2-t1) * (1.0/samplingRate));
-//    
-//    lcd.clear();
-//    lcd.print(frequency);
-//    //lcd.setCursor(0, 1);
-//    // lcd.print(sampleCounter);
-//    zeroCrossing = 0;
-//    sampleCounter = 0;
-//    t1 = 0;
-//    
-//  }
-//   
-//  if (frequency <= 49.9 || frequency >= 50.2 ) {
-//    digitalWrite(6, 1);
-//  }
-//  else {
-//    digitalWrite(6,0);
-//  }
+void calculate_RMS() {
+    RMS_voltage = 0.997 * sqrt(voltSum/(float)outerSampleCounter);
+    RMS_current = 1.0022 * sqrt(currentSum/(float)outerSampleCounter);
+    RMS_power = powerSum/(float)outerSampleCounter;
 }
 
 void AdcBooster() {
@@ -144,37 +162,25 @@ float lowPassFilter(float Input, float yOld){
 } 
 
 void detectZeroCrossing(void) {
-
   // Interrupt Callback function 
   sample = analogRead(A1);
-  
   // apply low pass filter to smoothen data
   newY = lowPassFilter(sample, oldY);
   sampleCounter++;
   // detect "zero crossing"
   if(newY >= offsetValueZeroCrossing && oldY < offsetValueZeroCrossing) {
     zeroCrossing++;
-//    if (t1 == 0) {
-//      t1 = sampleCounter;
-//      }
-//    t2 = sampleCounter;
   }  
   oldY = newY;
-
- analogWrite(A0, newY);
+  // only for debugging 
+  // comment this for the final version 
+  analogWrite(A0, newY);
 }
 
-void calculateFrequency() {
-  // float interpolationValue = ((newY - offsetValueZeroCrossing) / (newY - oldY)) * (1.0/samplingRate);
-  // calculate the period as the difference between the last zero crossing and the new zero crossing
-  
-  // float period = newT - oldT; //- interpolationValue;
-  frequency = (zeroCrossing-1) / ((t2-t1) * (1.0/samplingRate));
-  }
 
 float calculateAlpha(float crossOverFreq, float deltaT) {
   float RC = 1 / (2 * PI * crossOverFreq);
   return deltaT / (RC + deltaT);
-  }
+}
 
   
