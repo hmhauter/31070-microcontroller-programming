@@ -37,11 +37,9 @@ float oneMinusAlpha; //Calculation to speed up filter calculation in ISR
 volatile float oldY = 0.0;
 volatile float newY = 0.0;
 
-volatile float newT = 0.0;
-volatile float oldT = 0.0;
 
-volatile float nt = 0.0;
-volatile float ot = 0.0;
+volatile float oldY_int = 0;
+volatile float newY_int = 0;
 
 float RMS_voltage = 0.0;
 float RMS_current = 0.0;
@@ -54,12 +52,18 @@ volatile int sampleCounter = 0;
 
 const int measureFrequency = 50; 
 
-// RMS Calcukation 
+// RMS Calculation 
 int inputSum = 0;
 int outerSampleCounter = 0;
 float voltSum = 0.0;
 float currentSum = 0.0;
 float powerSum = 0.0;
+
+// Droop control 
+const float proportionalGain = (1.0/86400.0);
+const float carPower = 10000.0;
+const float baseFrequency = 50.0;
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -90,11 +94,23 @@ void loop() {
     // this is important!
     // use scaling factors for frequency measurement (emperically determined)
     // don't use sample Rate - it is not accurate enough
-    frequency = zeroCrossing / (sampleCounter * (1.0 / 10927.0)*1.0186); // 1.00731
+    float period = (sampleCounter * (1.0 / 10927.0) *1.014 ) / zeroCrossing;
+//    Serial.println("PERIOD");
+//    Serial.println(period);
+    // period -= interpolation();
+    
+    frequency = 1/period; //zeroCrossing / (sampleCounter * (1.0 / 10927.0)); // *1.014); //1.0186   1.00731
     // only frequency print out: scaling factor 1.007375
 
     // RMS calculations
     calculate_RMS();
+
+    // Droop Control and PWM Calculation 
+    float power = droopControl();
+    float PWMCurrent = calculateCurrent(power);
+    float PWMPercent = dutyCycle(PWMCurrent);
+
+
     
     // LCD prints
     printLCD();
@@ -114,6 +130,40 @@ void loop() {
     powerSum += current * volt;
     
     outerSampleCounter++;
+}
+
+float interpolation() {
+  float interpolX = ((float)newY_int-(float)offsetValueZeroCrossing) / ((float)newY_int-(float)oldY_int);
+  return interpolX*(1.0 / 10927.0);
+}
+
+float droopControl() {
+  float power = carPower + ((baseFrequency - frequency) / proportionalGain);
+  return power;
+}
+
+float calculateCurrent(float power) {
+  return (power / 240.0);
+}
+
+float dutyCycle(float current) {
+  float PWM_percent;
+  if (current <= 6.0) {
+    PWM_percent = 10.0;   
+    }
+  else if(current >= 6.0 && current < 52.0 ) {
+    PWM_percent = (75.0/46.0)*(current - 6.0) + 10.0;
+    }
+  else if(current >= 52.0 && current <= 52.5) {
+    PWM_percent = 85.0;
+    } 
+  else if(current > 52.5 && current < 80.0) {
+    PWM_percent = 0.4*(current - 52.5) + 85.0;
+    }
+  else if(current >= 80.0) {
+    PWM_percent = 96.0;
+    }
+  return PWM_percent;
 }
 
 void printLCD() {
@@ -166,10 +216,13 @@ void detectZeroCrossing(void) {
   sample = analogRead(A1);
   // apply low pass filter to smoothen data
   newY = lowPassFilter(sample, oldY);
+
   sampleCounter++;
   // detect "zero crossing"
   if(newY >= offsetValueZeroCrossing && oldY < offsetValueZeroCrossing) {
     zeroCrossing++;
+    newY_int = newY;
+    oldY_int = oldY;
   }  
   oldY = newY;
   // only for debugging 
