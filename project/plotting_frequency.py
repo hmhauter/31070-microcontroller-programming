@@ -9,12 +9,12 @@ path = os.path.dirname(script_dir)
 sys.path.append(path)
 
 # Plot frequency with respect to time with interpolation
-fWithInterpol = np.loadtxt(path+'/frequency_measurement_/frequency_with_interpolation.txt', delimiter=',', unpack=True)
+fWithInterpol = np.loadtxt(path+'/project/data/frequency_with_interpolation.txt', delimiter=',', unpack=True)
 line = 50 * np.ones(len(fWithInterpol));
 
 
 # Plot frequency without respect to time with interpolation
-fWithOutInterpol = np.loadtxt(path+'/frequency_measurement_/frequency_without_interpolation.txt', delimiter=',', unpack=True)
+fWithOutInterpol = np.loadtxt(path+'/project/data/frequency_without_interpolation.txt', delimiter=',', unpack=True)
 
 plt.rcParams.update({
     "text.usetex": True,
