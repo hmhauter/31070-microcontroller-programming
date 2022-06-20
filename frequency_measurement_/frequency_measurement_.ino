@@ -24,7 +24,7 @@ const int ledPin = 1;
 const int loadPin = 6;
 const int generatorPin = 0;
 
-const int buttonPin = 11;
+const int buttonPin = A2;
 
 // Frequency Calculation
 volatile long int zeroCrossing = 0;
@@ -47,6 +47,8 @@ volatile float oldY = 0.0;
 volatile float newY = 0.0;
 volatile float oldY_int = 0;
 volatile float newY_int = 0;
+
+float prevInterpol = 0.0;
 
 const float frequencyPeriod = 1.0;
 unsigned long previousMillis = 0;  
@@ -102,7 +104,7 @@ void setup() {
   pinMode(7, OUTPUT);
   pinMode(loadPin, OUTPUT);
   pinMode(generatorPin, OUTPUT);
-  pinMode(buttonPin, INPUT);
+  // pinMode(buttonPin, INPUT);
   analogWrite(7, 1);
   digitalWrite(loadPin, 0);
   digitalWrite(ledPin, 0);
@@ -122,6 +124,7 @@ void setup() {
   pwm.setClockDivider(2, false);
   // pwm.timer([0, 1, 2], [1, 2, 4, 8, 16, 64, 256, 1024], [2-MaxSteps], [true, false]);
   pwm.timer(0, 1, 24000, true); // port 5
+
   
 
 }
@@ -130,12 +133,11 @@ void loop() {
   //Serial.println("Update");
    //ArduinoCloud.update(); 
 //while (ArduinoCloud.connected() == 0 || canStart == false) 
-//  {
-//    ArduinoCloud.update();
-//    Serial.println("Waiting for connection to Arduino IoT Cloud");
-//    delay(1000);
-//}
-//  
+//{
+//   ArduinoCloud.update();
+//   Serial.println("Waiting for connection to Arduino IoT Cloud");
+//   delay(1000);
+//}  
 
 
   if (zeroCrossing >= measureFrequency) {
@@ -143,13 +145,16 @@ void loop() {
     // this is important!
     // use scaling factors for frequency measurement (emperically determined)
     // don't use sample Rate - it is not accurate enough
-    float period = (sampleCounter * (1.0 / 10927.0) *1.014 ) / zeroCrossing;
+    float period = (sampleCounter * (1.0 / 10927.0) * 1.016 ) / zeroCrossing; // *1.014
+    float interpolX = interpolation();
 
-    // period -= interpolation();
+    // period -= (interpolX - prevInterpol);
+    prevInterpol = interpolX;
     
-    frequency = 1/period; //zeroCrossing / (sampleCounter * (1.0 / 10927.0)); // *1.014); //1.0186   1.00731
+    
+    frequency = 1.0/period; //zeroCrossing / (sampleCounter * (1.0 / 10927.0)); // *1.024); //1.0186   1.00731
     // only frequency print out: scaling factor 1.007375
-    
+    Serial.println(frequency, 6);
     // Load and Generator Control
     generatorLoadControl(); 
     
@@ -161,7 +166,8 @@ void loop() {
 
     // NOT MANUAL 
     float PWMPercent = 0.0;
-    if(manualAmpere == false) {
+
+    if(isManual == false) {
       // Droop Control and PWM Calculation 
       float droopPower = droopControl();
       float PWMCurrent = calculateCurrent(droopPower);
@@ -178,12 +184,14 @@ void loop() {
        Cpower = manualAmpere*RMS_voltage;
        Campere = CmanualAmpere;
     }
-    
-    if(digitalRead(buttonPin) == 1) {
-      isManual = !isManual;
-      CisManual = isManual;
-      manualLED(); 
-    }
+
+
+//    if(analogRead(buttonPin) == 1023) {
+//
+//      isManual = !isManual;
+//      CisManual = isManual;
+//      manualLED(); 
+//    }
     
     pwm.analogWrite(5, PWMPercent*10);
     // for debugging PWM Frequency 
@@ -196,11 +204,9 @@ void loop() {
     outerSampleCounter = 0;
     zeroCrossing = 0;
     sampleCounter = 0;
-    if(outerSampleCounter % 5 == 0) {
-      Serial.println("Update Cloud");
-      ArduinoCloud.update(); 
-      }
-    }
+
+    ArduinoCloud.update(); 
+  }
 
     float volt = map(sample, 0, (resolution/2), -240*sqrt(2), 240*sqrt(2));
     float current = map(sample, 0, (resolution/2), -42*sqrt(2), 42*sqrt(2));
@@ -351,6 +357,7 @@ void manualLED() {
 
 void onCisManualChange()  {
   isManual = CisManual;
+  Serial.println("onIsManualChange");
   manualLED(); 
 }
 
