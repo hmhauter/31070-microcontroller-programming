@@ -4,6 +4,7 @@
 
 void onCisManualChange()  {
   isManual = CisManual;
+  onCmanualAmpereChange();
   manualLED(); 
 }
 
@@ -19,10 +20,11 @@ void doThisOnConnect() {
   Serial.println("Board successfully connected to Arduino IoT Cloud");
 }
 void doThisOnSync() {
-   Serial.println("Thing Properties synchronised");
-  canStart = true;
+  Serial.println("Thing Properties synchronised");
+  isSynchronised = true;
   
 }
 void doThisOnDisconnect() {
   Serial.println("Board disconnected from Arduino IoT Cloud");
+  isSynchronised = false;
 }

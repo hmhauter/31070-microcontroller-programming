@@ -2,7 +2,7 @@
 #include "setUpPIN.h"
 
 void calculate_RMS() {
-    RMS_voltage = 0.997 * sqrt(voltSum/(float)outerSampleCounter);
+    RMS_voltage = 0.9965 * sqrt(voltSum/(float)outerSampleCounter);
 }
 
 void generatorLoadControl() {
@@ -21,7 +21,15 @@ void generatorLoadControl() {
 }
 
 float droopControl() {
-  return (carPower + ((baseFrequency - frequency) / proportionalGain));
+  float _power;
+  if(frequency <= 49.9) {
+    _power = 1440;
+  } else if (frequency >= 50.1) {
+    _power = 19200;
+  } else {
+    _power =  (carPower + ((baseFrequency - frequency) / proportionalGain));
+  }
+  return _power;
 }
 
 float calculateCurrent(float droopPower) {

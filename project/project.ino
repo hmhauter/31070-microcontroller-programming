@@ -57,7 +57,7 @@ float currentSum = 0.0;
 float powerSum = 0.0;
 
 // Droop control 
-const float proportionalGain = (1.0/86400.0);
+const float proportionalGain = -(1.0/86400.0);
 const float carPower = 10000.0;
 const float baseFrequency = 50.0;
 
@@ -66,7 +66,7 @@ bool isManual = false;      // initially manual control should be disabled
 float manualAmpere = 0.0;
 
 // Debugging Value for Arduino Cloud 
-bool canStart = false;
+bool isSynchronised = false;
 
 void setup() {
   // Cloud SetUp 
@@ -81,6 +81,7 @@ void setup() {
 
 
   // Serial.begin(9600);
+  
   // Setup Values for Low Pass Filter 
   alpha = calculateAlpha(crossOverFreq, (1.0/samplingRate));
   oneMinusAlpha = 1.0 - alpha;
@@ -133,7 +134,7 @@ void loop() {
     // this is important!
     // use scaling factors for frequency measurement (emperically determined)
     // don't use sample Rate - it is not accurate enough
-    float period = (sampleCounter * (1.0 / 10927.0) * 1.015425 ) / zeroCrossing; // *1.014
+    float period = (sampleCounter * (1.0 / 10927.0) * 1.0182 ) / zeroCrossing; // *1.014  * 1.015425
     float interpolX = interpolation();
 
     // period -= (interpolX - prevInterpol);
@@ -187,7 +188,7 @@ void loop() {
     // update the values on the cloud
     ArduinoCloud.update(); 
   }
-
+    
     // map read frequency (without low pass filter) to voltage
     float volt = map(sample, 0, (resolution/2), -240*sqrt(2), 240*sqrt(2));
     // sum the square of volt to calculate RMS later
@@ -201,14 +202,20 @@ void printLCD() {
   // Frequency
   lcd.print("Freq:");
   lcd.setCursor(6, 0);
-  lcd.print(frequency, 4);
-  lcd.setCursor(14, 0);
+  lcd.print(frequency, 3);
+  lcd.setCursor(13, 0);
   lcd.print("Hz");
   // RMS Volt 
   lcd.setCursor(0, 1);
-  lcd.print(RMS_voltage, 2);
+  lcd.print("Volt:");
   lcd.setCursor(6, 1);
+  lcd.print(RMS_voltage, 2);
+  lcd.setCursor(13, 1);
   lcd.print("V");
+  if(isSynchronised == true) {
+    lcd.setCursor(15, 1);
+    lcd.print("C");  
+  }
 }
 
 
