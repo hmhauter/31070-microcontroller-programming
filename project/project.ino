@@ -18,8 +18,6 @@
 LiquidCrystal lcd(8, 4, 9, 10, 3, 2); 
 TurboPWM pwm;
 
-
-
 // Global Variables
 
 // Frequency Calculation
@@ -48,8 +46,6 @@ float prevInterpol = 0.0;
 
 // RMS Calculation 
 float RMS_voltage = 0.0;
-float RMS_current = 0.0;
-float RMS_power = 0.0;
 
 int outerSampleCounter = 0;
 float voltSum = 0.0;
@@ -121,7 +117,7 @@ void setup() {
 void loop() {
 
 // Debug Connection to Cloud 
-//while (ArduinoCloud.connected() == 0 || canStart == false) 
+//while (ArduinoCloud.connected() == 0 || isSynchronised == false) 
 //{
 //   ArduinoCloud.update();
 //   Serial.println("Waiting for connection to Arduino IoT Cloud");
@@ -130,29 +126,30 @@ void loop() {
 
 
   if (zeroCrossing >= measureFrequency) {
+  // calculate frequency, RMS voltage, current, power and PWM
    
-    // this is important!
-    // use scaling factors for frequency measurement (emperically determined)
+    // use linear scaling factors for frequency measurement (emperically determined)
     // don't use sample Rate - it is not accurate enough
-    float period = (sampleCounter * (1.0 / 10927.0) * 1.0182 ) / zeroCrossing; // *1.014  * 1.015425
+    float period = (sampleCounter * (1.0 / 10927.0) * 1.0182 ) / zeroCrossing; 
     float interpolX = interpolation();
 
+    // activate this for interpolation
     // period -= (interpolX - prevInterpol);
     // prevInterpol = interpolX;
     
-    
     frequency = 1.0/period;
 
-    // Load and Generator Control
+    // activate LEDs as load and generator control
     generatorLoadControl(); 
     
     // RMS calculations
     calculate_RMS();
     
-    // LCD prints
+    // update the screen of the LCD
     printLCD();
 
     float PWMPercent = 0.0;
+    // calculate power differently depending on if manual control is activated or not
     if(isManual == false) {
       // Droop Control and PWM Calculation 
       float droopPower = droopControl();
@@ -167,14 +164,16 @@ void loop() {
     } else {
       // Manual Control means that the current selected by the user is used 
       PWMPercent = dutyCycle(manualAmpere); 
+
+      // Write values to cloud variables 
       Cpwmperc = PWMPercent;
-      Cpower = manualAmpere*RMS_voltage;
+      Cpower = manualAmpere*RMS_voltage;  // power calculation
       Campere = CmanualAmpere;
     }
 
-    // wite PWM to PIN 5 
+    // wite PWMn signal (1000 Hz)
     pwm.analogWrite(PWMPIN, PWMPercent*10);
-
+)
     // for debugging PWM Frequency 
     float z = pwm.frequency(0);
     
@@ -212,6 +211,7 @@ void printLCD() {
   lcd.print(RMS_voltage, 2);
   lcd.setCursor(13, 1);
   lcd.print("V");
+  // give user hint if cloud is connected and synchronized
   if(isSynchronised == true) {
     lcd.setCursor(15, 1);
     lcd.print("C");  
@@ -220,6 +220,7 @@ void printLCD() {
 
 
 void AdcBooster() {
+  // boosting method to faster read from the ADC
   ADC->CTRLA.bit.ENABLE = 0; // Disable ADC
   while( ADC->STATUS.bit.SYNCBUSY == 1 ); // Wait for synchronization
   ADC->CTRLB.reg = ADC_CTRLB_PRESCALER_DIV16 | // Divide Clock by 16.
@@ -231,11 +232,3 @@ void AdcBooster() {
   while( ADC->STATUS.bit.SYNCBUSY == 1 ); // Wait for synchronization
 } 
 
-void manualLED() {
-  // shows the user if he can manually change the current 
-  if (isManual == true) {
-    digitalWrite(ledPIN, 1);
-  } else {
-    digitalWrite(ledPIN, 0);
-  }
-}

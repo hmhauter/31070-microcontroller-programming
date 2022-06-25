@@ -1,4 +1,4 @@
-// This file holds all the functions to calculate the frequency 
+// This file holds all the functions to prepare the frequency calculation 
 #include "setUpPIN.h"
 
 float lowPassFilter(float Input, float yOld){
@@ -9,21 +9,22 @@ float lowPassFilter(float Input, float yOld){
 void detectZeroCrossing(void) {
   // Interrupt Callback function 
   sample = analogRead(readFrequencyPIN);
-  // apply low pass filter to smoothen data
+  // apply low pass filter to remove noisy data
   newY = lowPassFilter(sample, oldY);
 
   sampleCounter++;
+
   // detect "zero crossing"
   if(newY >= offsetValueZeroCrossing && oldY < offsetValueZeroCrossing) {
     zeroCrossing++;
     newY_int = newY;
     oldY_int = oldY;
   }  
-  oldY = newY;
+  oldY = newY;  // update value for next interrupt
 
-  // only for debugging 
+  // for debugging purpose (measure filtered signal)
   // comment this for the final version 
-  analogWrite(writeFrequencyPIN, newY);
+  // analogWrite(writeFrequencyPIN, newY);
 }
 
 
@@ -34,6 +35,8 @@ float calculateAlpha(float crossOverFreq, float deltaT) {
 }
 
 float interpolation() {
+  // improve the accuracy of frequency calculation 
+  // interpolate between two samples where zero crossing did occure
   float interpolX = ((float)newY_int-(float)offsetValueZeroCrossing) / ((float)newY_int-(float)oldY_int);
   return interpolX*(1.0 / 10927.0);
 }

@@ -8,8 +8,6 @@
 
 #define THING_ID "0c2e4700-03de-4da1-b244-6426542eddc1"
 
-/* BOARD_ID is only required if you are using an ESP8266 */
-// #define BOARD_ID "a368c23e-e35a-492f-9e6c-b52cce81743a"
 
 // Read Only
 float Cpower;

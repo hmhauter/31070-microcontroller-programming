@@ -1,3 +1,5 @@
+# This file provides python code to plot the signal
+
 import sys
 from pathlib import Path
 import os
