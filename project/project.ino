@@ -173,7 +173,7 @@ void loop() {
 
     // wite PWMn signal (1000 Hz)
     pwm.analogWrite(PWMPIN, PWMPercent*10);
-)
+
     // for debugging PWM Frequency 
     float z = pwm.frequency(0);
     
